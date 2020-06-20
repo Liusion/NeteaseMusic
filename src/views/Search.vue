@@ -2,9 +2,7 @@
   <div :class="`search-page-container ${show && 'show'}`" @scroll="onScroll">
     <input type="text" class="search-input mt_15" placeholder="Search..." v-model="keywords">
     <div class="platform-select">
-      <i @click="search('platform', '163')" :class="`iconfont icon-163 ${platform === '163' && 'active'}`" />
-      <i @click="search('platform', 'qq')" :class="`iconfont icon-qq ${platform === 'qq' && 'active'}`" />
-      <i @click="search('platform', 'migu')" :class="`iconfont icon-migu ${platform === 'migu' && 'active'}`" />
+      <i v-for="p in ['163', 'qq', 'migu']" @click="search('platform', p)" :class="`iconfont icon-${p} ${platform === p && 'active'}`" />
     </div>
     <div class="ml_10 mt_10 mb_20">
       <div
@@ -20,18 +18,18 @@
     </div>
 
     <!-- 歌曲 -->
-    <div v-if="searchQuery.type === 1">
+    <div v-if="searchQuery.type === 0">
       <div class="empty-status" v-if="!searchQuery.songs || searchQuery.songs.length === 0">
         空空如也！
       </div>
       <div class="song-list result-list" v-if="searchQuery.songs && searchQuery.songs.length > 0">
         <div
-          :class="`song-item ${(allSongs[s].url || allSongs[s].qqId) ? 'hasurl' : 'disabled'}`"
+          :class="`song-item ${(allSongs[s].url) ? 'hasurl' : 'disabled'}`"
           v-for="(s, i) in searchQuery.songs"
           :key="`${s}-${i}`"
           @click="playMusic(s)"
         >
-          <div class="playing-bg" v-if="playNow.id === s" :style="`width: ${playingPercent * 100}%`">
+          <div class="playing-bg" v-if="playNow.aId === s" :style="`width: ${playingPercent * 100}%`">
             <div class="wave-bg"></div>
             <div class="wave-bg2"></div>
           </div>
@@ -70,43 +68,28 @@
     </div>
 
     <!-- 专辑 -->
-    <div v-if="searchQuery.type === 10">
-      <div class="album-list result-list" v-if="searchQuery.albums && searchQuery.albums.length > 0">
-        <div
-          v-for="a in searchQuery.albums" :key="a.id" class="album-item"
-        >
-          <div class="album-img-container pointer" @click="changeUrlQuery({ id: a.id, mid: a.mid, from: a.from }, '#/album')">
-            <img :src="`${a.picUrl}?param=200y200`">
-          </div>
-          <div class="album-name pointer" @click="goTo(`#/album?id=${a.id}`)">{{a.name}}</div>
-        </div>
-      </div>
-      <div class="empty-status" v-if="!searchQuery.albums || searchQuery.albums.length === 0">
-        空空如也！
-      </div>
-    </div>
+    <AlbumList empty-text="空空如也！" v-if="searchQuery.type === 2" :albums="searchQuery.albums" />
 
     <!-- 歌手 -->
-    <div v-if="searchQuery.type === 100">
-      <div class="singer-list result-list" v-if="searchQuery.artists && searchQuery.artists.length > 0">
-        <div v-for="s in searchQuery.artists" class="singer-item" @click="changeUrlQuery({ id: s.id, mid: s.mid, from: s.from }, '#/singer')">
-          <img class="singer-img" :src="`${String(s.picUrl) === 'null' ? 'http://p3.music.126.net/VnZiScyynLG7atLIZ2YPkw==/18686200114669622.jpg' : s.picUrl}?param=120y120`"  />
-          <div class="singer-name">{{s.name}}</div>
-        </div>
-      </div>
-      <div class="empty-status" v-if="!searchQuery.artists || searchQuery.artists.length === 0">
-        空空如也！
-      </div>
-    </div>
+    <SingerList empty-text="空空如也！" v-if="searchQuery.type === 3" :singers="searchQuery.singers" />
 
     <!-- 歌单 -->
-    <div v-if="searchQuery.type === 1000">
+    <div v-if="searchQuery.type === 1">
       <div class="playlist-list result-list" v-if="searchQuery.playlists && searchQuery.playlists.length > 0">
-        <div v-for="s in searchQuery.playlists" class="playlist-item" @click="changeUrlQuery({ id: s.id, from: s.from }, '#/playlist/detail')">
-          <img class="playlist-img" :src="`${s.coverImgUrl}?param=120y120`"  />
+        <div v-for="s in searchQuery.playlists" class="playlist-item" @click="changeUrlQuery({ id: s.id, from: s.platform }, '#/playlist/detail')">
+          <img class="playlist-img" :src="`${s.cover}?param=120y120`"  />
           <div class="playlist-name">{{s.name}}</div>
           <div class="playlist-author">
-            <span v-if="s.creator">By: {{s.creator.nickname || s.creator.name}}</span>
+            <el-tooltip
+              v-if="userList[s.platform] && !userList[s.platform].mine[`${s.platform}_${s.id}`]"
+              class="item"
+              effect="dark"
+              :content="s.subscribed ? '已收藏' : '收藏'"
+              placement="top"
+            >
+              <i @click="collectPlaylist(s)" :class="`inline-block mr_10 iconfont icon-${userList[s.platform].sub[`${s.platform}_${s.id}`] ? 'collected' : 'collect'}`" />
+            </el-tooltip>
+            <span v-if="s.creator && s.creator.nick">By: {{s.creator.nick}}</span>
             <span class="pl_20"><i class="iconfont icon-yinyue" />: {{numToStr(s.playCount || 0)}}</span>
           </div>
           <div class="playlist-trackcount">{{s.trackCount}}</div>
@@ -120,42 +103,46 @@
 </template>
 
 <script>
-  import { searchReq, likeMusic, download } from "../assets/utils/request";
+  import { searchReq, likeMusic, download, collectPlaylist } from "../assets/utils/request";
   import { numToStr, changeUrlQuery } from "../assets/utils/stringHelper";
   import { mapGetters } from 'vuex';
   import { messageHelp } from "../assets/utils/util";
   import $ from 'jquery';
+  import Storage from "../assets/utils/Storage";
+  import AlbumList from '../components/list/album';
+  import SingerList from '../components/list/singer';
 
   export default {
     name: "Search",
+    components: { AlbumList, SingerList },
     data() {
       return {
         show: false,
         keywords: '',
         typeList: [
           {
-            val: 1,
+            val: 0,
             color: 'red',
             icon: 'song',
             text: '歌曲',
             hasQQ: true,
           },
           {
-            val: 10,
+            val: 2,
             color: 'blue',
             icon: 'album',
             text: '专辑',
             hasQQ: true,
           },
           {
-            val: 100,
+            val: 3,
             color: 'green',
             icon: 'singer',
             text: '歌手',
             hasQQ: true,
           },
           {
-            val: 1000,
+            val: 1,
             color: 'yellow',
             icon: 'playlist',
             text: '歌单',
@@ -163,6 +150,7 @@
           },
         ],
         platform: '163',
+        qqId: Storage.get('qqId'),
         loading: false,
       }
     },
@@ -174,7 +162,9 @@
         playingPercent: 'getPlayingPercent',
         allList: 'getAllList',
         userList: 'getUserList',
+        qUserList: 'getQUserList',
         favSongMap: 'getFavSongMap',
+        user: 'getUser',
       })
     },
     watch: {
@@ -235,6 +225,7 @@
         }
       },
       likeMusic,
+      collectPlaylist,
       changeUrlQuery,
       playlistTracks(tracks, op, type, platform = '163') {
         window.event.stopPropagation();
@@ -561,93 +552,6 @@
             padding-left: 20px;
             line-height: 100px;
           }
-        }
-      }
-    }
-
-    .singer-list {
-      .singer-item {
-        position: relative;
-        width: 25%;
-        box-sizing: border-box;
-        display: inline-block;
-        vertical-align: top;
-        margin-bottom: 20px;
-        text-align: center;
-        cursor: pointer;
-        transition: 0.3s;
-        opacity: 0.7;
-
-        &:hover {
-          opacity: 1;
-        }
-
-        .singer-img {
-          width: 60%;
-          border-radius: 50%;
-          margin-top: 20px;
-        }
-
-        .singer-name {
-          padding-top: 10px;
-          color: #fff8;
-        }
-      }
-    }
-
-    .album-list {
-      .album-item {
-        display: inline-block;
-        width: 50%;
-        box-sizing: border-box;
-        text-align: center;
-        margin: 20px 0;
-        transition: 0.3s;
-        opacity: 0.7;
-        box-shadow: 0 0 0 transparent;
-        color: #fffc;
-
-        &:hover {
-          opacity: 0.9;
-
-          .album-img-container {
-            border-radius: 20px;
-            box-shadow: 0 0 30px #333333;
-
-            img {
-              width: 170px;
-              height: 170px;
-              top: -10px;
-              left: -10px;
-            }
-          }
-        }
-
-        .album-img-container {
-          display: inline-block;
-          width: 150px;
-          height: 150px;
-          position: relative;
-          overflow: hidden;
-          border-radius: 30px;
-          transition: 0.4s;
-
-          img {
-            width: 150px;
-            height: 150px;
-            left: 0;
-            top: 0;
-            position: absolute;
-            transition: 0.3s linear;
-          }
-        }
-        .album-name {
-          margin-top: 5px;
-          padding: 0 20px;
-          overflow: hidden;
-          white-space: nowrap;
-          text-overflow: ellipsis;
-          box-sizing: border-box;
         }
       }
     }

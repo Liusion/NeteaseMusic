@@ -1,6 +1,23 @@
 const apiList = {
+  'SEARCH': '/apiMix/search',
+  'LYRIC': '/apiMix/lyric',
+  'ALBUM': '/apiMix/album',
+  'BATCH_URL': '/apiMix/url/batch',
+  'PLAYLIST': '/apiMix/playlist',
+  'USER_PLAYLIST': '/apiMix/playlist/user',
+  'DAILY_PLAYLIST': '/apiMix/playlist/daily',
+  'RECOMMEND_PLAYLIST': '/apiMix/playlist/recommend',
+  'SINGER_INFO': '/apiMix/singer',
+  'SINGER_ALBUM': '/apiMix/singer/album',
+  'SINGER_SIM': '/apiMix/singer/sim',
+  'SINGER_SONG': '/apiMix/singer/song',
+  'SONG_INFO': '/apiMix/song',
+  'SONG_RECORD': '/apiMix/song/record',
+  'SINGLE_URL': '/apiMix/url',
+
   '163_SEARCH': '/api/search',
   '163_LOGIN_PHONE': '/api/login/cellphone',
+  '163_LOGOUT': '/api/logout',
   '163_LOGIN_EMAIL': '/api/login',
   'LOGIN_STATUS': '/api/login/status',
   'USER_LIST': '/api/user/playlist',
@@ -37,6 +54,7 @@ const apiList = {
   'GET_PERSON_FM': 'api/personal_fm', // 获取私人fm
   'GET_MV_INFO': 'api/mv/detail', // 获取 mv 信息
   'GET_SIMI_MV': 'api/simi/mv', // 获取相似 mv
+  'SUBSCRIBE_PLAYLIST': 'api/playlist/subscribe', // 收藏/取消收藏 歌单
 
   'QQ_SEARCH': 'apiQ/search', // qq 音乐搜索
   'QQ_VKEY': 'apiQ/vkey', // qq音乐 vkey
@@ -67,6 +85,8 @@ const apiList = {
   'QQ_COMMENT_LIKE': 'apiQ/comment/like', // qq 音乐评论点赞
   'QQ_COMMENT_DELETE': 'apiQ/comment/del', // qq 音乐删除评论
   'QQ_COMMENT_SEND': 'apiQ/comment/send', // qq 音乐发送评论
+  'QQ_COLLECTED_SONGLIST': 'apiQ/user/collect/songlist', // qq 音乐用户收藏的歌单
+  'QQ_COLLECT_SONGLIST': 'apiQ/songlist/collect', // qq 音乐收藏歌单操作
 
   'MIGU_SEARCH': 'apiM/search', // 咪咕 搜索
   'MIGU_URL_GET': 'apiM/song/url', // 咪咕 获取图片、播放链接

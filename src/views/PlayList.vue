@@ -14,23 +14,30 @@
       </div>
     </div>
 
-    <div v-if="selected === '163'" class="playlist-list hide-scroll">
-      <div v-if="!user.userId && hash === 'playlist' && !$route.query.id" class="text-center fc_fff ft_20" style="padding-top: 100px;opacity: 0.8;letter-spacing: 2px;">
+    <div class="playlist-list hide-scroll">
+      <div v-if="!user.userId && hash === 'playlist' && !$route.query.id && selected === '163'" class="text-center fc_fff ft_20" style="padding-top: 100px;opacity: 0.8;letter-spacing: 2px;">
         登录后可以查看个人歌单
+      </div>
+      <div class="input-qq mb_20" v-if="hash === 'playlist' && selected === 'qq'">
+        <input type="text" placeholder="输入QQ号吧" v-model="inputQQ" />
+        <div class="update-btn" v-if="inputQQ !== qqId" @click="updateQQNum">更新</div>
+      </div>
+      <div v-if="!qqId && hash === 'playlist' && selected === 'qq'" class="text-center fc_fff ft_20" style="padding-top: 100px;opacity: 0.8;letter-spacing: 2px;">
+        输入 QQ 号可查看个人歌单
       </div>
 
       <!-- 日推-->
       <div
-        v-if="allList.daily && !$route.query.id"
-        :class="`playlist-item ${playingListId === 'daily' && 'playing'}`"
-        @click="goTo('daily')"
+        v-if="allList[`${selected}_daily`] && !$route.query.id"
+        :class="`playlist-item ${playingListId === `${selected}_daily` && 'playing'}`"
+        @click="goTo(`${selected}_daily`, selected)"
       >
         <div class="list-img" style="border: 1px solid #fff5;text-align: center;">
           {{new Date().getDate()}}
         </div>
         <span class="list-name">每日推荐</span>
-        <span class="list-count">{{allList.daily.length}}</span>
-        <div v-if="playingListId == 'daily' && isPlaying" class="playing-item-bg">
+        <span class="list-count">{{allList[`${selected}_daily`].length}}</span>
+        <div v-if="playingListId === `${selected}_daily` && isPlaying" class="playing-item-bg">
           <div v-for="(o, i) in new Array(100)" :key="`bg-item-${i}`" :class="`playing-bg-${i}`">
             <div class="bg-item-inside"></div>
           </div>
@@ -38,103 +45,62 @@
       </div>
 
       <!-- 私人 FM -->
-      <div
-        v-if="allList.daily && !$route.query.id"
-        :class="`playlist-item ${playingListId === 'daily' && 'playing'}`"
-        @click="playPersonFM"
-      >
-        <div class="list-img" style="border: 1px solid #fff5;text-align: center;">
-          FM
-        </div>
-        <span class="list-name">私人FM</span>
-        <!--<span class="list-count">{{allList.daily.length}}</span>-->
-        <div v-if="isPersonFM && isPlaying" class="playing-item-bg">
-          <div v-for="(o, i) in new Array(100)" :key="`bg-item-${i}`" :class="`playing-bg-${i}`">
-            <div class="bg-item-inside"></div>
-          </div>
-        </div>
-      </div>
+<!--      <div-->
+<!--        v-if="selected === '163' && !$route.query.id"-->
+<!--        :class="`playlist-item ${playingListId === 'daily' && 'playing'}`"-->
+<!--        @click="playPersonFM"-->
+<!--      >-->
+<!--        <div class="list-img" style="border: 1px solid #fff5;text-align: center;">-->
+<!--          FM-->
+<!--        </div>-->
+<!--        <span class="list-name">私人FM</span>-->
+<!--        &lt;!&ndash;<span class="list-count">{{allList.daily.length}}</span>&ndash;&gt;-->
+<!--        <div v-if="isPersonFM && isPlaying" class="playing-item-bg">-->
+<!--          <div v-for="(o, i) in new Array(100)" :key="`bg-item-${i}`" :class="`playing-bg-${i}`">-->
+<!--            <div class="bg-item-inside"></div>-->
+<!--          </div>-->
+<!--        </div>-->
+<!--      </div>-->
       <!-- 歌单列表 -->
       <div
-        :class="`playlist-item ${playingListId == item.id && 'playing'}`"
+        :class="`playlist-item ${playingListId === item.listId && 'playing'}`"
         v-for="item in pagePlayList"
         :key="`playlist-${item.id}`"
         @click="goTo(item.id)"
       >
-        <div v-if="playingListId == item.id && isPlaying" class="playing-item-bg">
+        <div v-if="playingListId == item.listId && isPlaying" class="playing-item-bg">
           <div v-for="(o, i) in new Array(100)" :key="`bg-item-${i}`" :class="`playing-bg-${i}`">
             <div class="bg-item-inside"></div>
           </div>
         </div>
-        <img :src="`${item.coverImgUrl}?param=50y50`" class="list-bg-img" />
-        <img :src="`${item.coverImgUrl}?param=200y200`" class="list-img" />
+        <img :src="`${item.cover}?param=50y50`" class="list-bg-img" />
+        <img :src="`${item.cover}?param=200y200`" class="list-img" />
         <span class="list-name">{{item.name}}</span>
         <span class="list-count">{{item.trackCount}}</span>
-        <i @click="toHeartMode(item.id)" :class="`iconfont icon-heart heart-btn ${heartMode && playingListId === item.id && 'hearting'}`" />
-        <span class="list-creator" v-if="item.creator">
-          By: <a :href="`#/user?id=${item.creator.userId}`">{{item.creator.nickname}}</a>
+        <div class="bottom-text">
+<!--          <el-tooltip-->
+<!--            class="item"-->
+<!--            effect="dark"-->
+<!--            content="心动模式"-->
+<!--            placement="top"-->
+<!--            v-if="selected === '163' && user.userId"-->
+<!--          >-->
+<!--            <i @click="toHeartMode(item.id)" :class="`iconfont icon-heart heart-btn ${heartMode && playingListId === item.listId && 'hearting'}`" />-->
+<!--          </el-tooltip>-->
+          <el-tooltip
+            v-if="userList[selected] && !userList[selected].mine[item.listId]"
+            class="item"
+            effect="dark"
+            :content="userList[selected].sub[item.listId] ? '已收藏' : '收藏'"
+            placement="top"
+          >
+            <i @click="collectPlaylist(item)" :class="`collect-btn iconfont icon-${userList[selected].sub[item.listId] ? 'collected' : 'collect'}`" />
+          </el-tooltip>
+          <span class="list-creator" v-if="item.creator && item.creator.nick">
+          By: <a>{{item.creator.nick}}</a>
           <span class="pl_20" v-if="item.playCount"><i class="iconfont icon-yinyue" />: {{numToStr(item.playCount)}}</span>
         </span>
-      </div>
-    </div>
-
-    <div v-if="selected === 'qq'" class="playlist-list hide-scroll">
-      <div class="input-qq mb_20" v-if="hash === 'playlist'">
-        <input type="text" placeholder="输入QQ号吧" v-model="inputQQ" />
-        <div class="update-btn" v-if="inputQQ !== qqId" @click="updateQQNum">更新</div>
-      </div>
-      <div v-if="!qqId && hash === 'playlist'" class="text-center fc_fff ft_20" style="padding-top: 100px;opacity: 0.8;letter-spacing: 2px;">
-        输入 QQ 号可查看个人歌单
-      </div>
-      <div v-if="qqId && qUserList.list.length === 0 && hash === 'playlist'" class="text-center fc_fff ft_20" style="padding-top: 100px;opacity: 0.8;letter-spacing: 2px;">
-        没有歌单呢
-      </div>
-
-      <!-- 歌单列表 -->
-      <div
-        :class="`playlist-item ${playingListId == `qq${item.id}` && 'playing'}`"
-        v-for="item in pagePlayList"
-        :key="`playlist-q-${item.id}`"
-        @click="goTo(item.id, 'qq')"
-      >
-        <div v-if="playingListId == `qq${item.id}` && isPlaying" class="playing-item-bg">
-          <div v-for="(o, i) in new Array(100)" :key="`bg-item-${i}`" :class="`playing-bg-${i}`">
-            <div class="bg-item-inside"></div>
-          </div>
         </div>
-        <img :src="`${item.coverImgUrl}?param=50y50`" class="list-bg-img" />
-        <img :src="`${item.coverImgUrl}?param=200y200`" class="list-img" />
-        <span class="list-name">{{item.name}}</span>
-        <span class="list-creator">
-          <span v-if="item.playCount"><i class="iconfont icon-yinyue" />: {{numToStr(item.playCount)}}</span>
-        </span>
-        <span class="list-count">{{item.trackCount}}</span>
-
-      </div>
-    </div>
-
-    <div v-if="selected === 'migu'" class="playlist-list hide-scroll">
-      <!-- 歌单列表 -->
-      <div
-        :class="`playlist-item ${playingListId == `migu${item.id}` && 'playing'}`"
-        v-for="item in pagePlayList"
-        :key="`playlist-m-${item.id}`"
-        @click="goTo(item.id, 'migu')"
-      >
-        <div v-if="playingListId == `migu${item.id}` && isPlaying" class="playing-item-bg">
-          <div v-for="(o, i) in new Array(100)" :key="`bg-item-${i}`" :class="`playing-bg-${i}`">
-            <div class="bg-item-inside"></div>
-          </div>
-        </div>
-        <img :src="`${item.picUrl}`" class="list-bg-img" />
-        <img :src="`${item.picUrl}`" class="list-img" />
-        <span class="list-name">{{item.name}}</span>
-        <span class="list-creator">
-          By: <span>{{item.creator.name}}</span>
-          <span class="pl_20" v-if="item.playCount"><i class="iconfont icon-yinyue" />: {{numToStr(item.playCount)}}</span>
-        </span>
-        <span class="list-count">{{item.songCount}}</span>
-
       </div>
     </div>
   </div>
@@ -142,8 +108,13 @@
 
 <script>
   import { mapGetters } from 'vuex';
-  import { numToStr } from "../assets/utils/stringHelper";
-  import request, { handleSongs, getPersonFM, getQQUserSonglist } from '../assets/utils/request';
+  import {getQueryFromUrl, numToStr} from "../assets/utils/stringHelper";
+  import request, {
+    handleSongs,
+    getPersonFM,
+    collectPlaylist,
+    getUserList
+  } from '../assets/utils/request';
   import Storage from "../assets/utils/Storage";
   export default {
     name: "PlayList",
@@ -173,7 +144,7 @@
             val: '咪咕',
           },
         ],
-        selected: '163',
+        selected: getQueryFromUrl('from') || Storage.get('playlist_from') || '163',
         inputQQ: Storage.get('qqId'),
         qqId: Storage.get('qqId'),
       };
@@ -196,21 +167,27 @@
       $route() {
         this.hashChange();
       },
-      userList(v) {
-        // this.hashChange();
-      },
       selected(v) {
         Storage.set('playlist_from', v);
         this.hashChange();
       },
       recommendList() {
         this.hashChange();
+      },
+      userList(v) {
+        const { selected } = this;
+        if (v[selected] && !getQueryFromUrl('id')) {
+          this.pagePlayList = v[selected].list.map((id) => v[selected].obj[id]);
+        }
       }
     },
     created() {
       this.hashChange();
       setTimeout(() => this.show = true);
-      this.selected = Storage.get('playlist_from') || '163';
+      this.selected = getQueryFromUrl('from') || Storage.get('playlist_from') || '163';
+      if (document.location.hash.indexOf('playlist') > -1 && this.selected === 'migu') {
+        this.selected = '163';
+      }
     },
     destroyed() {
       this.show = false;
@@ -219,59 +196,29 @@
       async hashChange() {
         const hashs = ['playlist', 'recommend'];
         this.hash = hashs.find((h) => document.location.hash.indexOf(h) > -1);
-        const { selected, hash } = this;
+        const { selected, hash, user, inputQQ } = this;
         this.pagePlayList = [];
-        switch (`${hash}-${selected}`) {
-          case 'recommend-qq':
-            return !this.recommendList.qqList ? this.getQQRecommend() : (this.pagePlayList = this.recommendList.qqList);
-          case 'recommend-migu':
-            return !this.recommendList.miguList ? this.getMiguRecommend() : (this.pagePlayList = this.recommendList.miguList);
-          case 'recommend-163':
-            return this.pagePlayList = this.recommendList.list;
-          case 'playlist-qq':
-            return this.updateQQNum();
-          case 'playlist-163':
-            return (this.$route.query.id ? this.queryPlayList() : (this.pagePlayList = this.userList.list));
-          case 'playlist-migu':
-            return this.selected = '163';
+        let res, id = getQueryFromUrl('id') || { 163: user.userId, qq: inputQQ }[selected];
+        switch (hash) {
+          case 'recommend':
+            res = await request({
+              api: 'RECOMMEND_PLAYLIST',
+              data: { login: Number(Boolean(user.userId)), _p: selected }
+            });
+            this.pagePlayList = res.data;
+            break;
+          case 'playlist':
+            if (selected === 'migu') {
+              return this.selected = '163';
+            }
+            if (id) {
+              const { list } = await getUserList(id, this.selected);
+              this.pagePlayList = list;
+            }
+
         }
       },
-      getQQRecommend() {
-        request('QQ_RECOMMEND_PLAYLIST')
-          .then(res => {
-            const { recommendList } = this;
-            recommendList.qqList = res.data.list.map(({ cover_url_medium, song_ids, access_num, creator_info, title, tid }) => ({
-              from: 'qq',
-              id: tid,
-              name: title,
-              creator: creator_info,
-              playCount: access_num,
-              trackCount: song_ids.length,
-              coverImgUrl: cover_url_medium,
-            }));
-            this.hashChange();
-          })
-      },
-      getMiguRecommend() {
-        request('MIGU_RECOMMEND_PLAYLIST')
-          .then(res => {
-            const { recommendList } = this;
-            recommendList.miguList = res.data.list;
-            this.hashChange();
-          })
-      },
-      queryPlayList() {
-        const { id } = this.$route.query;
-        request({
-          api: 'USER_LIST',
-          data: {
-            uid: id
-          },
-        }).then((res) => {
-          this.pagePlayList = res.playlist;
-        })
-      },
-      goTo(id, platform = '') {
+      goTo(id, platform = this.selected) {
         window.location = `#/playlist/detail?id=${id}&from=${platform}`;
       },
       toHeartMode(pid) {
@@ -325,13 +272,12 @@
         const { inputQQ } = this;
         this.qqId = inputQQ;
         Storage.set('qqId', inputQQ);
-        getQQUserSonglist(inputQQ)
-          .then(() => {
-            this.pagePlayList = this.qUserList && this.qUserList.list || []
-          });
+        this.hashChange();
       },
 
       numToStr,
+
+      collectPlaylist,
     }
   }
 </script>
@@ -463,35 +409,37 @@
           top: -60px;
           transition: 0.3s;
         }
-        .heart-btn {
+        .bottom-text {
           position: absolute;
           bottom: 20px;
-          left: 110px;
           color: #fff3;
           font-weight: bold;
           cursor: pointer;
           font-size: 20px;
           transition: 0.3s;
+          left: 110px;
 
-          &.hearting {
-            color: #F56C6C88;
-            animation: hearting 1.4s infinite;
-            
-            @keyframes hearting {
-              from, to, 40%, 50%, 60%, 70% {
-                transform: scale(1);
-              }
-              45%, 65% {
-                transform: scale(1.2);
+          .collect-btn, .heart-btn {
+            margin-right: 15px;
+            &.heart-btn {
+
+              &.hearting {
+                color: #F56C6C88;
+                animation: hearting 1.4s infinite;
+
+                @keyframes hearting {
+                  from, to, 40%, 50%, 60%, 70% {
+                    transform: scale(1);
+                  }
+                  45%, 65% {
+                    transform: scale(1.2);
+                  }
+                }
               }
             }
           }
         }
         .list-creator {
-          position: absolute;
-          left: 145px;
-          bottom: 20px;
-          font-weight: bold;
           font-size: 14px;
           color: #fff5;
           transition: 0.3s;
@@ -550,10 +498,10 @@
           opacity: 1;
           box-shadow: 0 4px 20px #0004;
           
-          .heart-btn {
+          .bottom-text {
             color: #fffc;
 
-            &.hearting {
+            .hearting {
               color: #F56C6C;
             }
           }

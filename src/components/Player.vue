@@ -1,6 +1,6 @@
 <template>
   <div class="player-container">
-    <div v-if="showControl && playNow.id && allSongs[playNow.id]">
+    <div v-if="showControl && playNow && playNow.id">
       <!-- 播放，上一首、下一首进度 -->
       <div class="control-btn">
         <div class="inline-block">
@@ -19,16 +19,16 @@
       <div class="inline-block progress-container">
         <!-- 歌曲信息 -->
         <div class="song-info">
-          <i class="el-icon-loading mr_10" v-if="loading || Boolean(isReading)" />
+          <i class="el-icon-loading mr_10" v-if="loading" />
           <span class="player-song-title pointer" @click="goTo('#/')">{{playNow.name}}</span>
           <span class="player-song-singer pl_20 pointer">
-            <a v-for="a in allSongs[playNow.id].ar" :key="a.id" :href="changeUrlQuery({ id: a.id, mid: a.mid, from: playNow.from }, '#/singer', false)">{{a.name}} </a>
+            <a v-for="a in playNow.ar" :key="a.id" :href="changeUrlQuery({ id: a.id, mid: a.mid, from: playNow.platform }, '#/singer', false)">{{a.name}} </a>
           </span>
           <span
-            v-if="playNow.from !== 'migu'"
-            @click="likeMusic(playNow.id)"
+            v-if="favSongMap[playNow.platform]"
+            @click="likeMusic(playNow.aId)"
             style="margin-left: 25px; cursor: pointer;"
-            :class="(favSongMap[playNow.from || '163'][playNow.id]) ? 'iconfont icon-like iconfont' : 'iconfont icon-unlike'">
+            :class="(favSongMap[playNow.platform][playNow.aId]) ? 'iconfont icon-like iconfont' : 'iconfont icon-unlike'">
           </span>
         </div>
         <!-- 歌曲播放进度 -->
@@ -81,7 +81,7 @@
          <!--下载-->
         <el-tooltip class="item" effect="dark" content="下载" placement="top">
           <div class="inline-block ml_5 pd_5">
-            <span @click="down(playNow.id)">
+            <span @click="down(playNow.aId)">
               <i class="iconfont icon-download ft_16 pointer" />
             </span>
           </div>
@@ -89,14 +89,14 @@
 
         <!-- 添加到歌单 -->
         <el-tooltip class="item" effect="dark" content="添加到歌单" placement="top">
-          <div class="inline-block ml_5 pd_5" v-if="playNow.from !== 'migu'">
-            <span @click="playlistTracks(playNow.id, 'add', 'ADD_SONG_2_LIST', playNow.from || '163')">
+          <div class="inline-block ml_5 pd_5" v-if="playNow.platform !== 'migu'">
+            <span @click="playlistTracks(playNow.aId, 'add', 'ADD_SONG_2_LIST')">
               <i class="iconfont icon-add ft_16 pointer" />
             </span>
           </div>
         </el-tooltip>
 
-        <input id="cp-share-input" :value="changeUrlQuery({ shareId: playNow.id, from: playNow.from, shareCid: playNow.cid }, 'http://music.jsososo.com/#/', false)">
+        <input id="cp-share-input" :value="changeUrlQuery({ shareId: playNow.id, from: playNow.platform, shareCid: playNow.cid }, 'http://music.jsososo.com/#/', false)">
         <!-- 分享 -->
         <el-tooltip class="item" effect="dark" content="分享" placement="top">
           <div class="inline-block ml_5 pd_5">
@@ -124,7 +124,7 @@
 
       </div>
     </div>
-    <audio id="m-player" :src="playingUrl || ''" controls></audio>
+    <audio id="m-player" crossOrigin="anonymous" :src="playingUrl || ''" controls></audio>
   </div>
 </template>
 
@@ -137,11 +137,12 @@
     download,
     getPersonFM,
     handleQQComments,
-    getMusicData,
     getHighQualityUrl
   } from '../assets/utils/request';
   import { handleLyric, getQueryFromUrl, changeUrlQuery } from "../assets/utils/stringHelper";
   import ArrayHelper from '../assets/utils/arrayHelper';
+  import DrawMusic from "../assets/utils/drawMusic";
+  import idMap from "../assets/utils/idMap";
 
   export default {
     name: "PlayerPage",
@@ -184,50 +185,46 @@
         isPersonFM: 'isPersonFM',
         playingList: 'getPlayingList',
         mode: 'getMode',
-        isReading: 'isReading',
         favSongMap: 'getFavSongMap',
       }),
     },
     watch: {
       async playNow(v) {
+        if (!v) {
+          return;
+        }
         const { listId, playingId, playerInfo, isPersonFM, playingList, playingPlatform, isUpdating, pDom } = this;
-        const { id, lyric, name, comments, mid, songid, cid, qqId, miguId, br, pUrl } = v;
+        const { id, lyric, name, comments, mid, songid, cId, br, pUrl, aId, platform, qqId, miguId } = v;
         let { url } = v;
-        const trueId = v.from === 'qq' ? mid : id;
         const dispatch = this.$store.dispatch;
         const listenSize = Storage.get('listenSize') || '128';
-        const needRead = Storage.get('showDrawMusic') !== '0';
         if (isUpdating)
           return;
         // 这是刚切歌的时候需要判断下用户选择的播放品质并更新一下，同时如果已经在查询
         if ((pUrl !== this.playingUrl || !this.playingUrl) && url) {
           dispatch('setLoading', true);
-          if (needRead)
-            dispatch('setReading', true);
           this.isUpdating = true;
           const listenBr = {128: 128000, 320: 320000, flac: 960000}[listenSize];
           let [nUrl, nBr] = [url, br]; // 默认原始的信息
-          if (pUrl && Number(br) === listenBr) { // 有 pUrl 且与当前选择的品质相同
+          if ((pUrl && Number(br) === listenBr) || listenSize === '128') { // 有 pUrl 且与当前选择的品质相同
             nUrl = pUrl;
             nBr = listenBr;
           } else if (qqId || miguId) { // 如果是qq音乐或者咪咕音乐，获取播放链接
-            const result = await getHighQualityUrl(id, listenSize);
+            const result = await getHighQualityUrl(aId, listenSize);
             nUrl = result.url;
             nBr = result.br;
           }
           this.isUpdating = false;
           this.playingUrl = nUrl;
           pDom && pDom.pause();
+
           await dispatch('updateSongDetail', {
             pUrl: nUrl,
             br: nBr,
             id,
+            aId,
           });
-          if (needRead) {
-            getMusicData(url);
-          } else {
-            setTimeout(() => this.playing && this.playerDom.play(), 1);
-          }
+          setTimeout(() => this.playing && this.playerDom.play(), 1);
           return;
         }
         if (!this.playingUrl) {
@@ -249,14 +246,14 @@
         if (playerInfo.current > 0 && playingPlatform === '163') {
           let sourceid = (listId === 'daily' ? '' : listId) || '';
           if (!sourceid) {
-            sourceid = this.allSongs[playingId].al.id;
+            sourceid = this.allSongs[`163_${playingId}`].al.id;
           }
           // 听歌打卡
           request({
             api: 'SCROBBLE',
             data: {
               id: playingId,
-              sourceid,
+              sourceid: String(sourceid).replace(`${playingPlatform}_`, ''),
               time: Num(playerInfo.current),
             }
           })
@@ -266,12 +263,12 @@
         document.title = name;
         this.currentTime = 0;
         this.playingId = id;
-        this.playingPlatform = v.from || '163';
+        this.playingPlatform = v.platform || '163';
         this.listId = this.playingListId;
 
         // 更新后面的背景
         try {
-          document.getElementById('play-music-bg').src = `${this.allSongs[id].al.picUrl || 'http://p2.music.126.net/ftPcA5oCeIQxhiNmEpmtKw==/109951163926974610.jpg'}?param=1440y1440`;
+          document.getElementById('play-music-bg').src = `${this.allSongs[aId].al.picUrl || 'http://p2.music.126.net/ftPcA5oCeIQxhiNmEpmtKw==/109951163926974610.jpg'}?param=1440y1440`;
         } catch (err) {
           document.getElementById('play-music-bg').src = 'http://p2.music.126.net/ftPcA5oCeIQxhiNmEpmtKw==/109951163926974610.jpg';
         }
@@ -281,52 +278,33 @@
         }
         // 没有歌词的拿歌词
         if (!lyric) {
-          switch (v.from) {
-            case 'qq':
-              request({
-                api: 'QQ_LYRIC',
-                data: { songmid: mid },
-              }).then((res) => {
-                const { lyric, trans } = res.data;
-                const lyricObj = {};
-                handleLyric(lyric, 'str', lyricObj);
-                handleLyric(trans, 'trans', lyricObj);
-                dispatch('updateSongDetail', { id: trueId, lyric: lyricObj });
+          request({
+            api: 'LYRIC',
+            data: {
+              id: {
+                163: id,
+                qq: mid,
+                migu: cId
+              }[platform],
+              _p: platform,
+            }
+          }).then(({ data: { lyric, trans }}) => {
+            let lyricObj = {};
+            lyric && handleLyric(lyric, 'str', lyricObj);
+            trans && handleLyric(trans, 'trans', lyricObj);
+            !lyric && !trans && (
+              lyricObj = {
+                0: {
+                  str: '没有歌词哟，好好享受',
+                },
               });
-              break;
-            case 'migu':
-              request({
-                api: 'MIGU_LYRIC',
-                data: { cid },
-              }).then((res) => {
-                const lyricObj = {};
-                handleLyric(res.data, 'str', lyricObj);
-                dispatch('updateSongDetail', { id, lyric: lyricObj });
-              });
-              break;
-            default:
-              request({ api: 'GET_LYRIC', data: { id }, cache: true })
-                .then((res) => {
-                    const { nolyric, lrc = {}, tlyric = {} } = res;
-                    let lyric = {};
-                    if (nolyric) {
-                      lyric = {
-                        0: {
-                          str: '没有歌词哟，好好享受',
-                        },
-                      }
-                    } else {
-                      handleLyric(lrc.lyric, 'str', lyric);
-                      handleLyric(tlyric.lyric, 'trans', lyric);
-                    }
-                    dispatch('updateSongDetail', { id, lyric });
-                  });
-          }
+            dispatch('updateSongDetail', { lyric: lyricObj, aId });
+          })
         }
 
         // 没有评论的拿评论
         if (!comments) {
-          switch (v.from) {
+          switch (v.platform) {
             case 'qq':
               request({
                 api: 'QQ_GET_COMMENT',
@@ -338,7 +316,7 @@
                   total: res.data.comment.commenttotal,
                   offset: 20,
                 };
-                dispatch('updateSongDetail', { id: trueId, comments });
+                dispatch('updateSongDetail', { comments, aId });
               });
               break;
             case 'migu':
@@ -358,7 +336,7 @@
                   total: res.total,
                   offset: 20,
                 };
-                dispatch('updateSongDetail', { id, comments });
+                dispatch('updateSongDetail', { id, comments, aId });
               })
           }
         }
@@ -379,20 +357,23 @@
       const dispatch = this.$store.dispatch;
       window.onhashchange = () => this.showControl = !getQueryFromUrl('hideControl');
 
+      // 加载音频数据
+      if (window.AudioContext || window.webkitAudioContext) {
+        this.drawMusic = new DrawMusic();
+        const draw = () => {
+          this.drawMusic.draw();
+          setTimeout(() => draw(), 1000 / 90);
+        }
+        window.requestAnimationFrame(draw);
+      }
+
       // audio加载完成
       pDom.oncanplaythrough = () => {
         if (this.playingUrl === this.playNow.pUrl) {
           dispatch('setLoading', false);
 
           if (this.playing) {
-            const playDom = () => {
-              if (!this.isReading) {
-                pDom.play();
-              } else {
-                setTimeout(() => playDom(), 500);
-              }
-            };
-            playDom();
+            pDom.play();
           }
         }
         this.playerInfo = { duration: pDom.duration, current: 0 };
@@ -400,7 +381,7 @@
       };
       // 如果不播放了可能是url过期了
       pDom.onerror = (err) => {
-        const { id } = this.playNow;
+        const { id, aId } = this.playNow;
         if (!id) {
           return;
         }
@@ -414,10 +395,10 @@
             this.cutSong('playNext');
           }
         }, 50000);
-        switch (this.playNow.from) {
+        switch (this.playNow.platform) {
           case 'qq':
           case 'migu':
-            dispatch('updateSongDetail', { id, purl: '' });
+            dispatch('updateSongDetail', { id, purl: '', aId });
             break;
           default:
             request({ api: 'SONG_URL', data: { id }})
@@ -426,7 +407,7 @@
                 if (!url) {
                   return this.cutSong('playNext');
                 }
-                dispatch('updateSongDetail', { url, br, id, pUrl: url });
+                dispatch('updateSongDetail', { url, br, id, pUrl: url, aId });
               });
         }
       };
@@ -535,9 +516,9 @@
       goTo(url) {
         window.location = url;
       },
-      playlistTracks(tracks, op, type, platform) {
+      playlistTracks(tracks, op, type) {
         window.event.stopPropagation();
-        this.$store.dispatch('setOperation', { data: { tracks, op }, type, platform });
+        this.$store.dispatch('setOperation', { data: { tracks, op }, type });
       },
       goBack() {
         history.back(-1);

@@ -6,8 +6,10 @@
 // v4.1 adds url download capability via solo URL argument (same domain/CORS only)
 // v4.2 adds semantic variable names, long (over 2MB) dataURL support, and hidden by default temp anchors
 // https://github.com/rndme/download
+import Id3 from 'browser-id3-writer';
+import timer from './timer';
 
-export default function download(data, strFileName, strMimeType = null, cb = {}) {
+export default function download(data, strFileName, strMimeType = null, songInfo = null, cb = {}) {
   var self = window, // this script is only for browsers anyway...
     defaultMime = "application/octet-stream", // this default mime also triggers iframe downloads
     mimeType = strMimeType || defaultMime,
@@ -34,11 +36,50 @@ export default function download(data, strFileName, strMimeType = null, cb = {})
     if(anchor.href.indexOf(url) !== -1){ // if the browser determines that it's a potentially valid url path:
       var ajax=new XMLHttpRequest();
       ajax.open( "GET", url, true);
-      ajax.responseType = 'blob';
+      ajax.responseType = 'arraybuffer';
       ajax.onload= function(e){
         if (e.currentTarget.status === 200) {
-          cb.success && cb.success();
-          download(e.target.response, fileName, defaultMime);
+          var downInfo = e.target.response;
+          // 下面是下载歌曲图片，通过 id3 加到歌曲信息中，这样就能显示图片了
+          // 网易云的如果来源是qq,暂不添加id3
+          if (
+            !(songInfo.platform === '163' && songInfo.qqId) &&
+            songInfo && songInfo.al && songInfo.al.picUrl
+          ) {
+            var coverAjax = new XMLHttpRequest();
+            coverAjax.open('GET', songInfo.al.picUrl.replace(/http(s|):\/\/y\.gtimg\.cn/, `http://${window.location.host}/qqImg`), true);
+            coverAjax.responseType = 'arraybuffer';
+            coverAjax.onload = function (cE) {
+              try {
+                if (cE.currentTarget.status === 200) {
+                  const writer = new Id3(e.target.response);
+                  writer.setFrame('TIT2', songInfo.name)
+                    .setFrame('TPE1', songInfo.ar.map(a => a.name))
+                    .setFrame('TALB', songInfo.al.name)
+                    .setFrame('TRCK', songInfo.trackNo || '')
+                    .setFrame('APIC', {
+                      type: 3,
+                      data: coverAjax.response,
+                      description: songInfo.al.name,
+                    });
+                  songInfo.publishTime && writer.setFrame('TYER', timer(songInfo.publishTime).str('YYYY'));
+                  writer.addTag();
+                  downInfo = writer.arrayBuffer;
+                }
+              } catch (err) {
+                console.log('DOWN ERR: ', err);
+              }
+              setTimeout(() => {
+                cb.success && cb.success();
+                download(downInfo, fileName, defaultMime);
+              }, 10);
+            };
+
+            coverAjax.send();
+          } else {
+            cb.success && cb.success();
+            download(downInfo, fileName, defaultMime);
+          }
         }
         cb.error && cb.error();
       };
